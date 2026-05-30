@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>BeyondNetCode.Shell.Aop.Aspects</AssemblyName>
+    <RootNamespace>BeyondNetCode.Shell.Aop.Aspects</RootNamespace>
+    <Authors>Raul Naupari</Authors>
+    <Version>1.0.0</Version>
+    <Company>BeyondNet</Company>
+    <Description>Useful aspects created based on the BeyondNetCode.Shell.Aop library</Description>
+    <Copyright>Copyright © 2024-2026 BeyondNet</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/beyondnetcode/Shell.Aop</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/beyondnetcode/Shell.Aop</RepositoryUrl>
+    <PackageTags>aop;aspect-oriented-programming;aspects;dotnet;beyondnet</PackageTags>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BeyondNetCode.Shell.Aop\BeyondNetCode.Shell.Aop.csproj" />
+  </ItemGroup>
+
+</Project>

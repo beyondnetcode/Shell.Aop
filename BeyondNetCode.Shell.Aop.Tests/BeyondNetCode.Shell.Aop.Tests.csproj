@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>BeyondNetCode.Shell.Aop.Tests</AssemblyName>
+    <RootNamespace>BeyondNetCode.Shell.Aop.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageReference Include="MSTest" Version="4.2.3" />
+    <PackageReference Include="coverlet.collector" Version="10.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BeyondNetCode.Shell.Aop.DI\BeyondNetCode.Shell.Aop.DI.csproj" />
+    <ProjectReference Include="..\BeyondNetCode.Shell.Aop.Aspects.Logger.Serilog\BeyondNetCode.Shell.Aop.Aspects.Logger.Serilog.csproj" />
+  </ItemGroup>
+
+</Project>

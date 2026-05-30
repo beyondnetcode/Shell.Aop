@@ -1,0 +1,188 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  tags:
+    - 'v*'
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore BeyondNet.Aop.sln
+
+      - name: Build
+        run: dotnet build BeyondNet.Aop.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test BeyondNet.Aop.sln --configuration Release --no-build --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: "**/*.trx"
+
+  version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' || github.event_name == 'tag'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_release: ${{ steps.version.outputs.is_release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+            VERSION="${TAG#v}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            HASH="${GITHUB_SHA:0:7}"
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+            echo "version=0.0.0-$BRANCH_NAME+$HASH" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
+  pack:
+    name: Pack NuGet Packages
+    runs-on: ubuntu-latest
+    needs: [build-and-test, version]
+    if: needs.version.outputs.is_release == 'true'
+    strategy:
+      matrix:
+        project:
+          - src/BeyondNetCode.Shell.Aop/BeyondNetCode.Shell.Aop.csproj
+          - src/BeyondNetCode.Shell.Aop.Aspects/BeyondNetCode.Shell.Aop.Aspects.csproj
+          - src/BeyondNetCode.Shell.Aop.Aspects.Logger/BeyondNetCode.Shell.Aop.Aspects.Logger.csproj
+          - src/BeyondNetCode.Shell.Aop.Aspects.Logger.Serilog/BeyondNetCode.Shell.Aop.Aspects.Logger.Serilog.csproj
+          - src/BeyondNetCode.Shell.Aop.DispatchProxy/BeyondNetCode.Shell.Aop.DispatchProxy.csproj
+          - src/BeyondNetCode.Shell.Aop.DI/BeyondNetCode.Shell.Aop.DI.csproj
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Pack
+        run: |
+          dotnet pack "${{ matrix.project }}" \
+            -c Release \
+            --version:${{ needs.version.outputs.version }} \
+            --no-build \
+            -p:PackageOutputPath=${{ github.workspace }}/nupkgs
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.project }}
+          path: nupkgs/*.nupkg
+
+  publish:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    needs: pack
+    if: needs.pack.result == 'success' && needs.version.outputs.is_release == 'true'
+    environment: nuget-release
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: ./nupkgs
+          merge-multiple: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Push to NuGet.org
+        run: |
+          for nupkg in $(find ./nupkgs -name '*.nupkg'); do
+            dotnet nuget push "$nupkg" \
+              --api-key ${{ secrets.NUGET_API_KEY }} \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [version]
+    if: needs.version.outputs.is_release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Release Notes
+        id: release-notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: commits } = await github.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+              since: '2024-01-01'
+            });
+            let body = '## What\'s New\n\n';
+            body += `**Version:** ${context.payload.ref.replace('refs/tags/', '')}\n\n`;
+            body += '### Commits\n';
+            commits.slice(0, 20).forEach(c => {
+              body += `- ${c.commit.message.split('\n')[0]} (${c.sha.slice(0, 7)})\n`;
+            });
+            return body;
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.release-notes.outputs.result }}
+          draft: false
+          prerelease: ${{ contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
