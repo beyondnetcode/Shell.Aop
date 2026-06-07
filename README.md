@@ -3,7 +3,7 @@
   <p><strong>A high-performance Aspect-Oriented Programming (AOP) framework for .NET</strong></p>
 
   <p>
-    <a href="README.en.md">🇬🇧 English</a> | <a href="README.es.md">🇪🇸 Español</a>
+    <a href="README.en.md"> English</a> | <a href="README.es.md"> Español</a>
   </p>
 
   <p>
